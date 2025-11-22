@@ -59,6 +59,21 @@
       }
     }
 
+    // Guarantee a walkable spawn bubble so the player isn't trapped on water/rocks.
+    const spawnCenter = { x: Math.floor(size / 2), y: Math.floor(size / 2) };
+    const safeRadius = 8;
+    for (let y = spawnCenter.y - safeRadius; y <= spawnCenter.y + safeRadius; y++) {
+      for (let x = spawnCenter.x - safeRadius; x <= spawnCenter.x + safeRadius; x++) {
+        if (x < 0 || y < 0 || x >= size || y >= size) continue;
+        const dist = Math.hypot(x - spawnCenter.x, y - spawnCenter.y);
+        if (dist <= safeRadius - 2) {
+          tiles[y * size + x] = TILE.GROUND;
+        } else if (dist <= safeRadius) {
+          tiles[y * size + x] = TILE.SAND;
+        }
+      }
+    }
+
     // scatter resources with rings outward
     const center = { x: Math.floor(size / 2), y: Math.floor(size / 2) };
     function place(count, type, minDist, maxDist) {
