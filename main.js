@@ -221,6 +221,28 @@ function render() {
     if (res.collected) return;
     const rx = res.x * TILE_SIZE + TILE_SIZE / 2 - camera.x;
     const ry = res.y * TILE_SIZE + TILE_SIZE / 2 - camera.y;
+
+    if (res.type === RESOURCE.SCRAP) {
+      ctx.save();
+      ctx.shadowColor = 'rgba(0, 180, 255, 0.5)';
+      ctx.shadowBlur = res.highlight ? 12 : 6;
+      ctx.fillStyle = '#d6f0ff';
+      ctx.beginPath();
+      ctx.arc(rx, ry, 9.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#3a8bff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(rx - 4, ry);
+      ctx.lineTo(rx + 4, ry);
+      ctx.moveTo(rx, ry - 4);
+      ctx.lineTo(rx, ry + 4);
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
+
     ctx.fillStyle = resourceColor(res.type);
     ctx.beginPath();
     ctx.arc(rx, ry, 8, 0, Math.PI * 2);
@@ -290,7 +312,7 @@ function tileColor(tile) {
 function resourceColor(type) {
   if (type === RESOURCE.FOOD) return '#4cd964';
   if (type === RESOURCE.WOOD) return '#9b7653';
-  if (type === RESOURCE.SCRAP) return '#c7d0d9';
+  if (type === RESOURCE.SCRAP) return '#d6f0ff';
   return '#8fd3ff';
 }
 
