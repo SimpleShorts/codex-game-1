@@ -5,7 +5,9 @@
     constructor(x, y) {
       this.x = x;
       this.y = y;
-      this.speed = 520; // tuned so each frame moves ~8-10px at 60fps before fatigue
+      // Increase base speed so single key taps translate to roughly 10px steps at 60fps
+      // while still letting fatigue slow the character slightly over time.
+      this.speed = 620;
       this.energy = 100;
       this.health = 100;
       this.warmth = 100;
@@ -16,7 +18,8 @@
       this.direction.x = dx;
       this.direction.y = dy;
       const len = Math.hypot(dx, dy) || 1;
-      const moveSpeed = this.speed * (0.6 + this.energy / 200);
+      const fatigueModifier = Math.max(0.55, 0.65 + this.energy / 220);
+      const moveSpeed = this.speed * fatigueModifier;
       const nx = dx / len * moveSpeed * dt;
       const ny = dy / len * moveSpeed * dt;
       const targetX = this.x + nx;

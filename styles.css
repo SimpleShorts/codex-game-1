@@ -22,12 +22,22 @@ body {
   flex-direction: column;
   gap: 10px;
   pointer-events: none;
+  background: rgba(15, 22, 35, 0.7);
+  border: 1px solid rgba(255,255,255,0.2);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+  padding: 14px 16px;
+  border-radius: 12px;
 }
 .hud-line {
   font-size: 15px;
   font-weight: 600;
   color: #f7fbff;
   text-shadow: 0 1px 2px rgba(0,0,0,0.35);
+}
+.hud-line.subtle {
+  color: #c7d7f0;
+  font-weight: 500;
+  font-size: 13px;
 }
 .bar {
   position: relative;
@@ -54,18 +64,26 @@ body {
 }
 #inventory {
   background: rgba(17, 24, 39, 0.65);
-  padding: 8px 12px;
-  border: 1px solid rgba(255,255,255,0.2);
-  border-radius: 6px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 8px;
   font-size: 15px;
-  max-width: 280px;
+  max-width: 300px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05);
 }
 #messages {
   max-width: 320px;
   font-size: 14px;
   line-height: 1.3;
   color: #e2ebff;
+  background: rgba(7, 12, 25, 0.5);
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 8px;
+  padding: 10px 12px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
 }
+#messages .hint:not(:last-child) { margin-bottom: 6px; }
+#messages .hint { color: #b8d7ff; }
 #overlay {
   position: fixed;
   inset: 0;

@@ -302,7 +302,11 @@ function applyBrightness(hex, gamma) {
 
 // Input handling
 window.addEventListener('keydown', (e) => {
-  keys[e.key.toLowerCase()] = true;
+  const key = e.key.toLowerCase();
+  keys[key] = true;
+  if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(key)) {
+    e.preventDefault();
+  }
   if (e.key === 'e' || e.key === 'E') {
     // gathering handled in update loop proximity
   }
@@ -314,6 +318,10 @@ window.addEventListener('keydown', (e) => {
 
 window.addEventListener('keyup', (e) => {
   keys[e.key.toLowerCase()] = false;
+});
+
+window.addEventListener('blur', () => {
+  keys = {};
 });
 
 window.addEventListener('resize', () => {

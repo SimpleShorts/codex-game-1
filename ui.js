@@ -5,6 +5,7 @@
     const inventory = document.getElementById('inventory');
     const messages = document.getElementById('messages');
     const seedDisplay = document.getElementById('seedDisplay');
+    const controls = document.getElementById('controls');
 
     healthBar.style.width = player.health + '%';
     tempBar.style.width = player.warmth + '%';
@@ -22,6 +23,10 @@
     if (seedDisplay) {
       const dayLabel = info.day ? ` · Day ${info.day}` : '';
       seedDisplay.textContent = `Seed ${info.seed ?? '???'}${dayLabel}  (Set via ?seed=NUMBER)`;
+    }
+
+    if (controls) {
+      controls.textContent = 'Move: WASD / Arrows · Gather: E · Eat: Q · Fire: F · Rest: R · Beacon: B';
     }
   }
 
