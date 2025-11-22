@@ -3,11 +3,14 @@ const ctx = canvas.getContext('2d');
 
 const TILE_SIZE = 32;
 const WORLD_SIZE = 150; // tiles per side
-const SEED = 1337;
+const params = new URLSearchParams(window.location.search);
+const seedParam = parseInt(params.get('seed'), 10);
+const SEED = Number.isFinite(seedParam) ? seedParam : Math.floor(Math.random() * 1_000_000_000);
 const SHIP_RADIUS = 80;
 const FIRE_RADIUS = 90;
 const RESCUE_COST = { food: 3, wood: 6, oil: 3 };
 const CAMPFIRE_COST = 3;
+const GAMMA = 1.2; // Tweak to globally brighten/dim terrain rendering
 
 const world = WorldGen.generateWorld(SEED, WORLD_SIZE);
 const { TILE, RESOURCE } = world;
@@ -59,7 +62,7 @@ function update(dt) {
   updateCampfires(dt);
   checkResourcePickup();
   checkBeacon(dt);
-  UI.updateHUD(player, hints);
+  UI.updateHUD(player, hints, { seed: SEED, day: Math.floor(timeOfDay / 120 * 4) + 1 });
 }
 
 function updateSurvival(dt) {
@@ -261,29 +264,40 @@ function render() {
   }
 
   // day/night tint
-  const nightFactor = Math.max(0, Math.cos((timeOfDay / 120) * Math.PI * 2));
-  ctx.fillStyle = `rgba(10,15,30,${0.35 + nightFactor * 0.35})`;
+  const cycle = (timeOfDay / 120) * Math.PI * 2;
+  const nightFactor = (Math.cos(cycle) + 1) / 2; // 0 (day) -> 1 (deep night)
+  ctx.fillStyle = `rgba(6, 10, 24, ${0.2 + nightFactor * 0.55})`;
   ctx.fillRect(0, 0, width, height);
 
   // debug HUD seed
-  ctx.fillStyle = 'rgba(255,255,255,0.6)';
-  ctx.font = '12px monospace';
-  ctx.fillText(`Seed ${SEED}  Day ${Math.floor(timeOfDay/120 * 4)+1}`, width - 160, 20);
+  ctx.fillStyle = 'rgba(255,255,255,0.65)';
+  ctx.font = '13px monospace';
+  ctx.fillText(`Seed ${SEED}  Day ${Math.floor(timeOfDay/120 * 4)+1}`, width - 180, 26);
 }
 
 function tileColor(tile) {
+  let base;
   switch (tile) {
-    case TILE.WATER: return '#1b3b5f';
-    case TILE.ROCK: return '#4b5668';
-    case TILE.SAND: return '#c2b280';
-    default: return '#223024';
+    case TILE.WATER: base = '#2a5d8c'; break;
+    case TILE.ROCK: base = '#6c7689'; break;
+    case TILE.SAND: base = '#d9caa0'; break;
+    default: base = '#33513b';
   }
+  return applyBrightness(base, GAMMA);
 }
 
 function resourceColor(type) {
   if (type === RESOURCE.FOOD) return '#4cd964';
   if (type === RESOURCE.WOOD) return '#9b7653';
   return '#8fd3ff';
+}
+
+function applyBrightness(hex, gamma) {
+  const bigint = parseInt(hex.replace('#', ''), 16);
+  const r = Math.min(255, Math.floor(((bigint >> 16) & 255) * gamma));
+  const g = Math.min(255, Math.floor(((bigint >> 8) & 255) * gamma));
+  const b = Math.min(255, Math.floor((bigint & 255) * gamma));
+  return `rgb(${r}, ${g}, ${b})`;
 }
 
 // Input handling

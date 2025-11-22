@@ -5,7 +5,7 @@
     constructor(x, y) {
       this.x = x;
       this.y = y;
-      this.speed = 3.2;
+      this.speed = 520; // tuned so each frame moves ~8-10px at 60fps before fatigue
       this.energy = 100;
       this.health = 100;
       this.warmth = 100;
