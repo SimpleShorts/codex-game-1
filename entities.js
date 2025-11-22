@@ -11,7 +11,7 @@
       this.energy = 100;
       this.health = 100;
       this.warmth = 100;
-      this.inventory = { food: 1, wood: 2, oil: 0 };
+      this.inventory = { food: 1, wood: 2, oil: 0, scrap: 0 };
       this.direction = { x: 0, y: 0 };
     }
     move(dx, dy, dt, collisionFn) {

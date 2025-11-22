@@ -19,7 +19,8 @@
   const RESOURCE = {
     FOOD: 'food',
     WOOD: 'wood',
-    OIL: 'oil'
+    OIL: 'oil',
+    SCRAP: 'scrap'
   };
 
   function generateWorld(seed, size) {
@@ -27,9 +28,14 @@
     const tiles = new Array(size * size);
     const resources = [];
 
+    const slopeX = rng() * 0.6 - 0.3; // tilt landmass toward a random side
+    const slopeY = rng() * 0.6 - 0.3;
+    const noiseShiftX = Math.floor(rng() * 10000);
+    const noiseShiftY = Math.floor(rng() * 10000);
+
     // Simple height-ish noise from layered random circles
     const peaks = [];
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 10; i++) {
       peaks.push({
         x: Math.floor(rng() * size),
         y: Math.floor(rng() * size),
@@ -38,18 +44,38 @@
       });
     }
 
+    function valueNoise(x, y) {
+      // hash-based deterministic noise to add variety without extra RNG use
+      let n = x * 374761393 + y * 668265263;
+      n = (n ^ (n << 13)) >>> 0;
+      n = (n * (n * n * 15731 + 789221) + 1376312589) >>> 0;
+      return (n & 0xfffffff) / 0xfffffff; // 0..1
+    }
+
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
         const dx = x - size / 2;
         const dy = y - size / 2;
-        const distanceFromCenter = Math.sqrt(dx * dx + dy * dy);
         let h = 0.4; // base height
+
+        // add gentle continent tilt for macro variety
+        h += slopeX * (x / size - 0.5) + slopeY * (y / size - 0.5);
+
+        // add coarse deterministic noise to break symmetry
+        const n = valueNoise(x + noiseShiftX, y + noiseShiftY);
+        h += (n - 0.5) * 0.35;
+
         peaks.forEach(p => {
           const d = Math.hypot(x - p.x, y - p.y);
           h += Math.max(0, p.strength * (1 - d / p.r));
         });
-        // soften around center to keep crash site calm
-        h -= Math.max(0, 0.6 - distanceFromCenter / (size * 0.15));
+
+        // soften immediate spawn neighborhood; broader world stays varied
+        const distanceFromCenter = Math.sqrt(dx * dx + dy * dy);
+        if (distanceFromCenter < size * 0.07) {
+          h = Math.max(h, 0.55);
+        }
+
         let tile;
         if (h < 0.35) tile = TILE.WATER;
         else if (h < 0.45) tile = TILE.SAND;
@@ -95,6 +121,7 @@
     place(Math.floor(size * 0.9), RESOURCE.FOOD, 12, size / 2.2);
     place(Math.floor(size * 1.2), RESOURCE.WOOD, 10, size / 1.8);
     place(Math.floor(size * 0.35), RESOURCE.OIL, size / 3, size / 1.4);
+    place(Math.floor(size * 0.5), RESOURCE.SCRAP, size / 2.6, size / 1.1);
 
     return { tiles, resources, rng, TILE, RESOURCE };
   }

@@ -2,13 +2,13 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
 const TILE_SIZE = 32;
-const WORLD_SIZE = 150; // tiles per side
+const WORLD_SIZE = 450; // tiles per side (expanded world)
 const params = new URLSearchParams(window.location.search);
 const seedParam = parseInt(params.get('seed'), 10);
 const SEED = Number.isFinite(seedParam) ? seedParam : Math.floor(Math.random() * 1_000_000_000);
 const SHIP_RADIUS = 80;
 const FIRE_RADIUS = 90;
-const RESCUE_COST = { food: 3, wood: 6, oil: 3 };
+const RESCUE_COST = { oil: 15, scrap: 15 };
 const CAMPFIRE_COST = 3;
 const GAMMA = 1.2; // Tweak to globally brighten/dim terrain rendering
 
@@ -30,7 +30,8 @@ let rescueTimer = 0;
 let hints = [
   'WASD / Arrow Keys to move',
   'E to gather, Q to eat, F to build fire',
-  'Stay warm near fires or the ship!'
+  'Stay warm near fires or the ship!',
+  'Beacon needs 15 Oil and 15 Scrap Parts'
 ];
 
 function handleInput(dt) {
@@ -62,7 +63,7 @@ function update(dt) {
   updateCampfires(dt);
   checkResourcePickup();
   checkBeacon(dt);
-  UI.updateHUD(player, hints, { seed: SEED, day: Math.floor(timeOfDay / 120 * 4) + 1 });
+  UI.updateHUD(player, hints, { seed: SEED, day: Math.floor(timeOfDay / 120 * 4) + 1, beaconCost: RESCUE_COST });
 }
 
 function updateSurvival(dt) {
@@ -289,6 +290,7 @@ function tileColor(tile) {
 function resourceColor(type) {
   if (type === RESOURCE.FOOD) return '#4cd964';
   if (type === RESOURCE.WOOD) return '#9b7653';
+  if (type === RESOURCE.SCRAP) return '#c7d0d9';
   return '#8fd3ff';
 }
 
