@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stranded Signal</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="hud">
+    <div class="bar">
+      <div id="healthBar" class="fill health"></div>
+      <span id="healthLabel" class="label">Health</span>
+    </div>
+    <div class="bar">
+      <div id="tempBar" class="fill temp"></div>
+      <span id="tempLabel" class="label">Warmth</span>
+    </div>
+    <div id="inventory"></div>
+    <div id="messages"></div>
+  </div>
+  <canvas id="game"></canvas>
+  <div id="overlay" class="hidden"></div>
+
+  <script src="world.js"></script>
+  <script src="entities.js"></script>
+  <script src="ui.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
