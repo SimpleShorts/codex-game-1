@@ -318,15 +318,31 @@ function render() {
     });
     ctx.restore();
 
+    // Boost underlying colors so resources/actors remain bright within the light bubble.
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    lightSources.forEach(src => {
+      const boost = ctx.createRadialGradient(src.x, src.y, 0, src.x, src.y, src.radius * 0.9);
+      boost.addColorStop(0, 'rgba(255, 255, 235, 0.95)');
+      boost.addColorStop(0.3, 'rgba(255, 240, 205, 0.9)');
+      boost.addColorStop(0.65, 'rgba(255, 215, 150, 0.55)');
+      boost.addColorStop(1, 'rgba(255, 200, 130, 0.25)');
+      ctx.fillStyle = boost;
+      ctx.beginPath();
+      ctx.arc(src.x, src.y, src.radius * 0.95, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
+
     // Then add a warm glow to actively brighten everything inside the light.
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     lightSources.forEach(src => {
       const glow = ctx.createRadialGradient(src.x, src.y, 0, src.x, src.y, src.radius * 0.95);
-      glow.addColorStop(0, 'rgba(255, 244, 214, 0.95)');
-      glow.addColorStop(0.2, 'rgba(255, 228, 168, 0.9)');
-      glow.addColorStop(0.55, 'rgba(255, 200, 120, 0.55)');
-      glow.addColorStop(1, 'rgba(255, 170, 80, 0.18)');
+      glow.addColorStop(0, 'rgba(255, 248, 224, 0.95)');
+      glow.addColorStop(0.2, 'rgba(255, 230, 180, 0.9)');
+      glow.addColorStop(0.55, 'rgba(255, 205, 130, 0.6)');
+      glow.addColorStop(1, 'rgba(255, 175, 90, 0.24)');
       ctx.fillStyle = glow;
       ctx.beginPath();
       ctx.arc(src.x, src.y, src.radius, 0, Math.PI * 2);
