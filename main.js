@@ -217,39 +217,6 @@ function render() {
   ctx.fillStyle = '#7e8de0';
   ctx.fillRect(shipX - 16, shipY - 8, 32, 16);
 
-  // resources
-  world.resources.forEach(res => {
-    if (res.collected) return;
-    const rx = res.x * TILE_SIZE + TILE_SIZE / 2 - camera.x;
-    const ry = res.y * TILE_SIZE + TILE_SIZE / 2 - camera.y;
-
-    if (res.type === RESOURCE.SCRAP) {
-      ctx.save();
-      ctx.shadowColor = 'rgba(0, 180, 255, 0.5)';
-      ctx.shadowBlur = res.highlight ? 12 : 6;
-      ctx.fillStyle = '#d6f0ff';
-      ctx.beginPath();
-      ctx.arc(rx, ry, 9.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#3a8bff';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(rx - 4, ry);
-      ctx.lineTo(rx + 4, ry);
-      ctx.moveTo(rx, ry - 4);
-      ctx.lineTo(rx, ry + 4);
-      ctx.stroke();
-      ctx.restore();
-      return;
-    }
-
-    ctx.fillStyle = resourceColor(res.type);
-    ctx.beginPath();
-    ctx.arc(rx, ry, 8, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
   // campfires
   campfires.forEach(f => {
     const fx = f.x - camera.x;
@@ -258,40 +225,8 @@ function render() {
     ctx.beginPath();
     ctx.arc(fx, fy, 10, 0, Math.PI * 2);
     ctx.fill();
-    if (f.active) {
-      ctx.save();
-      const glow = ctx.createRadialGradient(fx, fy, 0, fx, fy, FIRE_LIGHT_RADIUS);
-      glow.addColorStop(0, 'rgba(255, 232, 180, 0.9)');
-      glow.addColorStop(0.35, 'rgba(255, 200, 120, 0.65)');
-      glow.addColorStop(1, 'rgba(255, 160, 64, 0.12)');
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = glow;
-      ctx.beginPath();
-      ctx.arc(fx, fy, FIRE_LIGHT_RADIUS, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
   });
-
-  // player
-  const px = player.x - camera.x;
-  const py = player.y - camera.y;
-  ctx.fillStyle = '#82e0aa';
-  ctx.beginPath();
-  ctx.arc(px, py, 10, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = '#2ecc71';
-  ctx.stroke();
-
-  // beacon indicator
-  if (beaconArmed) {
-    ctx.strokeStyle = 'rgba(255,255,0,0.6)';
-    ctx.beginPath();
-    ctx.arc(shipX, shipY, 26 + Math.sin(performance.now() / 200) * 6, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-
-  // day/night tint
+  // day/night tint (apply before post-lighting renders)
   const cycle = (timeOfDay / 120) * Math.PI * 2;
   const nightFactor = (Math.cos(cycle) + 1) / 2; // 0 (day) -> 1 (deep night)
   const darkness = 0.2 + nightFactor * 0.55;
@@ -300,9 +235,14 @@ function render() {
 
   // punch light holes around active fires (and the ship) so night rendering keeps nearby resources visible
   const lightSources = [{ x: shipX, y: shipY, radius: FIRE_LIGHT_RADIUS }];
+  const lightSourcesWorld = [{ x: WORLD_SIZE * TILE_SIZE / 2, y: WORLD_SIZE * TILE_SIZE / 2, radius: FIRE_LIGHT_RADIUS }];
   campfires.forEach(f => {
-    if (f.active) lightSources.push({ x: f.x - camera.x, y: f.y - camera.y, radius: FIRE_LIGHT_RADIUS });
+    if (f.active) {
+      lightSources.push({ x: f.x - camera.x, y: f.y - camera.y, radius: FIRE_LIGHT_RADIUS });
+      lightSourcesWorld.push({ x: f.x, y: f.y, radius: FIRE_LIGHT_RADIUS });
+    }
   });
+
   if (lightSources.length) {
     // First clear darkness inside the radius so the base scene shows through.
     ctx.save();
@@ -320,14 +260,14 @@ function render() {
     });
     ctx.restore();
 
-    // Lift scene brightness inside the light cone so objects stay clear at ~75% intensity.
+    // Lift scene brightness inside the light cone so the terrain stays readable.
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
     lightSources.forEach(src => {
       const lift = ctx.createRadialGradient(src.x, src.y, 0, src.x, src.y, src.radius);
-      lift.addColorStop(0, 'rgba(255, 245, 210, 0.75)');
-      lift.addColorStop(0.35, 'rgba(255, 235, 190, 0.6)');
-      lift.addColorStop(0.7, 'rgba(255, 225, 170, 0.32)');
+      lift.addColorStop(0, 'rgba(255, 245, 210, 0.55)');
+      lift.addColorStop(0.35, 'rgba(255, 235, 190, 0.38)');
+      lift.addColorStop(0.7, 'rgba(255, 225, 170, 0.18)');
       lift.addColorStop(1, 'rgba(255, 215, 160, 0)');
       ctx.fillStyle = lift;
       ctx.beginPath();
@@ -336,13 +276,13 @@ function render() {
     });
     ctx.restore();
 
-    // Add a warm glow that peaks at 50% brightness and gently tapers outward.
+    // Add a warm glow that peaks around 40% brightness and gently tapers outward.
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     lightSources.forEach(src => {
       const glow = ctx.createRadialGradient(src.x, src.y, 0, src.x, src.y, src.radius);
-      glow.addColorStop(0, 'rgba(255, 205, 130, 0.5)');
-      glow.addColorStop(0.4, 'rgba(255, 185, 110, 0.32)');
+      glow.addColorStop(0, 'rgba(255, 205, 130, 0.4)');
+      glow.addColorStop(0.4, 'rgba(255, 185, 110, 0.26)');
       glow.addColorStop(1, 'rgba(255, 155, 90, 0)');
       ctx.fillStyle = glow;
       ctx.beginPath();
@@ -350,6 +290,61 @@ function render() {
       ctx.fill();
     });
     ctx.restore();
+  }
+
+  // render key elements on top of glow so they stay crisp and bright when lit
+  world.resources.forEach(res => {
+    if (res.collected) return;
+    const wx = res.x * TILE_SIZE + TILE_SIZE / 2;
+    const wy = res.y * TILE_SIZE + TILE_SIZE / 2;
+    const rx = wx - camera.x;
+    const ry = wy - camera.y;
+    const lit = isLit(wx, wy, lightSourcesWorld);
+
+    if (res.type === RESOURCE.SCRAP) {
+      ctx.save();
+      ctx.shadowColor = 'rgba(0, 180, 255, 0.5)';
+      ctx.shadowBlur = res.highlight ? 12 : 6;
+      ctx.fillStyle = liftColor('#d6f0ff', lit);
+      ctx.beginPath();
+      ctx.arc(rx, ry, 9.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = liftColor('#3a8bff', lit);
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(rx - 4, ry);
+      ctx.lineTo(rx + 4, ry);
+      ctx.moveTo(rx, ry - 4);
+      ctx.lineTo(rx, ry + 4);
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
+
+    ctx.fillStyle = liftColor(resourceColor(res.type), lit);
+    ctx.beginPath();
+    ctx.arc(rx, ry, 8, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // player
+  const px = player.x - camera.x;
+  const py = player.y - camera.y;
+  const playerLit = isLit(player.x, player.y, lightSourcesWorld);
+  ctx.fillStyle = liftColor('#82e0aa', playerLit);
+  ctx.beginPath();
+  ctx.arc(px, py, 10, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = liftColor('#2ecc71', playerLit);
+  ctx.stroke();
+
+  // beacon indicator
+  if (beaconArmed) {
+    ctx.strokeStyle = 'rgba(255,255,0,0.6)';
+    ctx.beginPath();
+    ctx.arc(shipX, shipY, 26 + Math.sin(performance.now() / 200) * 6, 0, Math.PI * 2);
+    ctx.stroke();
   }
 
   // debug HUD seed
@@ -374,6 +369,26 @@ function resourceColor(type) {
   if (type === RESOURCE.WOOD) return '#9b7653';
   if (type === RESOURCE.SCRAP) return '#d6f0ff';
   return '#8fd3ff';
+}
+
+function isLit(x, y, sources) {
+  return sources.some(src => distance(x, y, src.x, src.y) < src.radius);
+}
+
+function liftColor(hex, lit) {
+  if (!lit) return hex;
+  const [r, g, b] = hexToRgb(hex);
+  // Blend toward white to reach a bright ~75% tone without washing out the base hue.
+  const mix = 0.25; // 25% white keeps color detail while lifting brightness noticeably.
+  const nr = Math.min(255, Math.round(r * (1 - mix) + 255 * mix));
+  const ng = Math.min(255, Math.round(g * (1 - mix) + 255 * mix));
+  const nb = Math.min(255, Math.round(b * (1 - mix) + 255 * mix));
+  return `rgb(${nr}, ${ng}, ${nb})`;
+}
+
+function hexToRgb(hex) {
+  const bigint = parseInt(hex.replace('#', ''), 16);
+  return [(bigint >> 16) & 255, (bigint >> 8) & 255, bigint & 255];
 }
 
 function applyBrightness(hex, gamma) {
