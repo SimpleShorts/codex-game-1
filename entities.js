@@ -51,7 +51,7 @@
     constructor(x, y) {
       this.x = x;
       this.y = y;
-      this.timer = 60; // seconds of burn
+      this.timer = 30; // seconds of burn
     }
     update(dt) {
       this.timer = Math.max(0, this.timer - dt);

@@ -2,13 +2,14 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
 const TILE_SIZE = 32;
-const WORLD_SIZE = 450; // tiles per side (expanded world)
+const WORLD_SIZE = 800; // tiles per side (expanded world)
 const params = new URLSearchParams(window.location.search);
 const seedParam = parseInt(params.get('seed'), 10);
 const SEED = Number.isFinite(seedParam) ? seedParam : Math.floor(Math.random() * 1_000_000_000);
 const SHIP_RADIUS = 80;
 const FIRE_RADIUS = 90;
-const RESCUE_COST = { oil: 15, scrap: 15 };
+const FIRE_LIGHT_RADIUS = 170;
+const RESCUE_COST = { oil: 20, scrap: 20 };
 const CAMPFIRE_COST = 3;
 const GAMMA = 1.2; // Tweak to globally brighten/dim terrain rendering
 
@@ -31,7 +32,7 @@ let hints = [
   'WASD / Arrow Keys to move',
   'E to gather, Q to eat, F to build fire',
   'Stay warm near fires or the ship!',
-  'Beacon needs 15 Oil and 15 Scrap Parts'
+  'Beacon needs 20 Oil and 20 Scrap Parts'
 ];
 
 function handleInput(dt) {
@@ -258,12 +259,12 @@ function render() {
     ctx.arc(fx, fy, 10, 0, Math.PI * 2);
     ctx.fill();
     if (f.active) {
-      const glow = ctx.createRadialGradient(fx, fy, 0, fx, fy, 70);
-      glow.addColorStop(0, 'rgba(255, 160, 64, 0.35)');
-      glow.addColorStop(1, 'rgba(255, 160, 64, 0)');
+      const glow = ctx.createRadialGradient(fx, fy, 0, fx, fy, FIRE_LIGHT_RADIUS);
+      glow.addColorStop(0, 'rgba(255, 180, 96, 0.45)');
+      glow.addColorStop(1, 'rgba(255, 180, 96, 0)');
       ctx.fillStyle = glow;
       ctx.beginPath();
-      ctx.arc(fx, fy, 70, 0, Math.PI * 2);
+      ctx.arc(fx, fy, FIRE_LIGHT_RADIUS, 0, Math.PI * 2);
       ctx.fill();
     }
   });
@@ -289,8 +290,27 @@ function render() {
   // day/night tint
   const cycle = (timeOfDay / 120) * Math.PI * 2;
   const nightFactor = (Math.cos(cycle) + 1) / 2; // 0 (day) -> 1 (deep night)
-  ctx.fillStyle = `rgba(6, 10, 24, ${0.2 + nightFactor * 0.55})`;
+  const darkness = 0.2 + nightFactor * 0.55;
+  ctx.fillStyle = `rgba(6, 10, 24, ${darkness})`;
   ctx.fillRect(0, 0, width, height);
+
+  // punch light holes around active fires (and the ship) so night rendering keeps nearby resources visible
+  const lightSources = [{ x: shipX, y: shipY, radius: FIRE_LIGHT_RADIUS }];
+  campfires.forEach(f => { if (f.active) lightSources.push({ x: f.x - camera.x, y: f.y - camera.y, radius: FIRE_LIGHT_RADIUS }); });
+  if (lightSources.length && darkness > 0.25) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'destination-out';
+    lightSources.forEach(src => {
+      const gradient = ctx.createRadialGradient(src.x, src.y, 0, src.x, src.y, src.radius);
+      gradient.addColorStop(0, `rgba(0, 0, 0, ${Math.min(0.8, darkness + 0.25)})`);
+      gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(src.x, src.y, src.radius, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
+  }
 
   // debug HUD seed
   ctx.fillStyle = 'rgba(255,255,255,0.65)';

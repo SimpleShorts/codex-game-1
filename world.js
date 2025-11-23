@@ -104,9 +104,10 @@
 
     // scatter resources with rings outward
     const center = { x: Math.floor(size / 2), y: Math.floor(size / 2) };
-    function place(count, type, minDist, maxDist, forceVisible = false) {
+    function place(count, type, minDist, maxDist, { forceVisible = false, highlightChance = 0 } = {}) {
       let placed = 0;
       const maxAttempts = count * 60;
+      if (maxDist < minDist) [minDist, maxDist] = [maxDist, minDist];
       for (let attempt = 0; attempt < maxAttempts && placed < count; attempt++) {
         const angle = rng() * Math.PI * 2;
         const dist = minDist + rng() * (maxDist - minDist);
@@ -115,7 +116,8 @@
         if (x < 2 || y < 2 || x >= size - 2 || y >= size - 2) continue;
         const tile = tiles[y * size + x];
         if (tile === TILE.WATER || tile === TILE.ROCK) continue;
-        resources.push({ x, y, type, collected: false, highlight: forceVisible });
+        const highlight = forceVisible || rng() < highlightChance;
+        resources.push({ x, y, type, collected: false, highlight });
         placed++;
       }
 
@@ -126,7 +128,8 @@
             const tile = tiles[y * size + x];
             const farEnough = Math.hypot(x - center.x, y - center.y) > minDist * 0.75;
             if (tile === TILE.WATER || tile === TILE.ROCK || !farEnough) continue;
-            resources.push({ x, y, type, collected: false, highlight: forceVisible });
+            const highlight = forceVisible || rng() < highlightChance;
+            resources.push({ x, y, type, collected: false, highlight });
             placed++;
           }
         }
@@ -136,8 +139,11 @@
     place(Math.floor(size * 0.9), RESOURCE.FOOD, 12, size / 2.2);
     place(Math.floor(size * 1.2), RESOURCE.WOOD, 10, size / 1.8);
     place(Math.floor(size * 0.35), RESOURCE.OIL, size / 3.2, size / 1.6);
-    // Scrap parts: intentionally far from spawn and never zero, with highlights to aid visibility
-    place(Math.max(30, Math.floor(size * 0.55)), RESOURCE.SCRAP, size / 2.1, size * 0.46, true);
+    // Scrap parts: intentionally far from spawn, tougher to spot, but with guaranteed quantity
+    const scrapCount = Math.max(100, Math.floor(size * 0.25));
+    const scrapInner = size * 0.42;
+    const scrapOuter = size * 0.48;
+    place(scrapCount, RESOURCE.SCRAP, scrapInner, scrapOuter, { highlightChance: 0.18 });
 
     return { tiles, resources, rng, TILE, RESOURCE };
   }
