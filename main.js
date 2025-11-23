@@ -194,6 +194,7 @@ function render() {
   const endX = Math.ceil((camera.x + width) / TILE_SIZE);
   const endY = Math.ceil((camera.y + height) / TILE_SIZE);
 
+  // base world tiles
   for (let y = startY; y <= endY; y++) {
     for (let x = startX; x <= endX; x++) {
       if (x < 0 || y < 0 || x >= WORLD_SIZE || y >= WORLD_SIZE) continue;
@@ -217,7 +218,7 @@ function render() {
   ctx.fillStyle = '#7e8de0';
   ctx.fillRect(shipX - 16, shipY - 8, 32, 16);
 
-  // campfires
+  // campfires (base icon)
   campfires.forEach(f => {
     const fx = f.x - camera.x;
     const fy = f.y - camera.y;
@@ -226,14 +227,60 @@ function render() {
     ctx.arc(fx, fy, 10, 0, Math.PI * 2);
     ctx.fill();
   });
-  // day/night tint (apply before post-lighting renders)
+
+  // base resource pass (subject to darkness)
+  world.resources.forEach(res => {
+    if (res.collected) return;
+    const rx = res.x * TILE_SIZE + TILE_SIZE / 2 - camera.x;
+    const ry = res.y * TILE_SIZE + TILE_SIZE / 2 - camera.y;
+
+    if (res.type === RESOURCE.SCRAP) {
+      ctx.save();
+      ctx.shadowColor = 'rgba(0, 180, 255, 0.4)';
+      ctx.shadowBlur = res.highlight ? 12 : 6;
+      ctx.fillStyle = '#d6f0ff';
+      ctx.beginPath();
+      ctx.arc(rx, ry, 9.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#3a8bff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(rx - 4, ry);
+      ctx.lineTo(rx + 4, ry);
+      ctx.moveTo(rx, ry - 4);
+      ctx.lineTo(rx, ry + 4);
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
+
+    ctx.fillStyle = resourceColor(res.type);
+    ctx.beginPath();
+    ctx.arc(rx, ry, 8, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // player base
+  const px = player.x - camera.x;
+  const py = player.y - camera.y;
+  ctx.fillStyle = '#82e0aa';
+  ctx.beginPath();
+  ctx.arc(px, py, 10, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#2ecc71';
+  ctx.stroke();
+
+  // lighting parameters
   const cycle = (timeOfDay / 120) * Math.PI * 2;
   const nightFactor = (Math.cos(cycle) + 1) / 2; // 0 (day) -> 1 (deep night)
   const darkness = 0.2 + nightFactor * 0.55;
+
+  // apply darkness over everything drawn so far
   ctx.fillStyle = `rgba(6, 10, 24, ${darkness})`;
   ctx.fillRect(0, 0, width, height);
 
-  // punch light holes around active fires (and the ship) so night rendering keeps nearby resources visible
+  // light sources for fire + ship
   const lightSources = [{ x: shipX, y: shipY, radius: FIRE_LIGHT_RADIUS }];
   const lightSourcesWorld = [{ x: WORLD_SIZE * TILE_SIZE / 2, y: WORLD_SIZE * TILE_SIZE / 2, radius: FIRE_LIGHT_RADIUS }];
   campfires.forEach(f => {
@@ -244,7 +291,7 @@ function render() {
   });
 
   if (lightSources.length) {
-    // First clear darkness inside the radius so the base scene shows through.
+    // Carve darkness inside the light radius so the scene beneath shows through.
     ctx.save();
     ctx.globalCompositeOperation = 'destination-out';
     lightSources.forEach(src => {
@@ -260,29 +307,13 @@ function render() {
     });
     ctx.restore();
 
-    // Lift scene brightness inside the light cone so the terrain stays readable.
-    ctx.save();
-    ctx.globalCompositeOperation = 'screen';
-    lightSources.forEach(src => {
-      const lift = ctx.createRadialGradient(src.x, src.y, 0, src.x, src.y, src.radius);
-      lift.addColorStop(0, 'rgba(255, 245, 210, 0.55)');
-      lift.addColorStop(0.35, 'rgba(255, 235, 190, 0.38)');
-      lift.addColorStop(0.7, 'rgba(255, 225, 170, 0.18)');
-      lift.addColorStop(1, 'rgba(255, 215, 160, 0)');
-      ctx.fillStyle = lift;
-      ctx.beginPath();
-      ctx.arc(src.x, src.y, src.radius, 0, Math.PI * 2);
-      ctx.fill();
-    });
-    ctx.restore();
-
-    // Add a warm glow that peaks around 40% brightness and gently tapers outward.
+    // Warm glow behind gameplay elements, capped at ~40% at the center.
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     lightSources.forEach(src => {
       const glow = ctx.createRadialGradient(src.x, src.y, 0, src.x, src.y, src.radius);
       glow.addColorStop(0, 'rgba(255, 205, 130, 0.4)');
-      glow.addColorStop(0.4, 'rgba(255, 185, 110, 0.26)');
+      glow.addColorStop(0.4, 'rgba(255, 185, 110, 0.22)');
       glow.addColorStop(1, 'rgba(255, 155, 90, 0)');
       ctx.fillStyle = glow;
       ctx.beginPath();
@@ -292,52 +323,55 @@ function render() {
     ctx.restore();
   }
 
-  // render key elements on top of glow so they stay crisp and bright when lit
-  world.resources.forEach(res => {
-    if (res.collected) return;
-    const wx = res.x * TILE_SIZE + TILE_SIZE / 2;
-    const wy = res.y * TILE_SIZE + TILE_SIZE / 2;
-    const rx = wx - camera.x;
-    const ry = wy - camera.y;
-    const lit = isLit(wx, wy, lightSourcesWorld);
+  // On-top lit pass so elements glow without being washed out by the halo layer
+  if (lightSources.length) {
+    world.resources.forEach(res => {
+      if (res.collected) return;
+      const wx = res.x * TILE_SIZE + TILE_SIZE / 2;
+      const wy = res.y * TILE_SIZE + TILE_SIZE / 2;
+      const rx = wx - camera.x;
+      const ry = wy - camera.y;
+      const lit = isLit(wx, wy, lightSourcesWorld);
+      if (!lit) return;
 
-    if (res.type === RESOURCE.SCRAP) {
-      ctx.save();
-      ctx.shadowColor = 'rgba(0, 180, 255, 0.5)';
-      ctx.shadowBlur = res.highlight ? 12 : 6;
-      ctx.fillStyle = liftColor('#d6f0ff', lit);
+      if (res.type === RESOURCE.SCRAP) {
+        ctx.save();
+        ctx.shadowColor = 'rgba(0, 180, 255, 0.5)';
+        ctx.shadowBlur = res.highlight ? 12 : 6;
+        ctx.fillStyle = liftColor('#d6f0ff', true);
+        ctx.beginPath();
+        ctx.arc(rx, ry, 9.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = liftColor('#3a8bff', true);
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(rx - 4, ry);
+        ctx.lineTo(rx + 4, ry);
+        ctx.moveTo(rx, ry - 4);
+        ctx.lineTo(rx, ry + 4);
+        ctx.stroke();
+        ctx.restore();
+        return;
+      }
+
+      ctx.fillStyle = liftColor(resourceColor(res.type), true);
       ctx.beginPath();
-      ctx.arc(rx, ry, 9.5, 0, Math.PI * 2);
+      ctx.arc(rx, ry, 8, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = liftColor('#3a8bff', lit);
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(rx - 4, ry);
-      ctx.lineTo(rx + 4, ry);
-      ctx.moveTo(rx, ry - 4);
-      ctx.lineTo(rx, ry + 4);
-      ctx.stroke();
-      ctx.restore();
-      return;
-    }
+    });
+  }
 
-    ctx.fillStyle = liftColor(resourceColor(res.type), lit);
-    ctx.beginPath();
-    ctx.arc(rx, ry, 8, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  // player
-  const px = player.x - camera.x;
-  const py = player.y - camera.y;
+  // player highlight if lit (drawn on top of glow)
   const playerLit = isLit(player.x, player.y, lightSourcesWorld);
-  ctx.fillStyle = liftColor('#82e0aa', playerLit);
-  ctx.beginPath();
-  ctx.arc(px, py, 10, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = liftColor('#2ecc71', playerLit);
-  ctx.stroke();
+  if (playerLit) {
+    ctx.fillStyle = liftColor('#82e0aa', true);
+    ctx.beginPath();
+    ctx.arc(px, py, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = liftColor('#2ecc71', true);
+    ctx.stroke();
+  }
 
   // beacon indicator
   if (beaconArmed) {
