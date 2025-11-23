@@ -5,18 +5,21 @@
     constructor(x, y) {
       this.x = x;
       this.y = y;
-      this.speed = 520; // tuned so each frame moves ~8-10px at 60fps before fatigue
+      // Keep movement snappy but slightly calmer so taps feel controllable
+      // while still letting fatigue slow the character over time.
+      this.speed = 540;
       this.energy = 100;
       this.health = 100;
       this.warmth = 100;
-      this.inventory = { food: 1, wood: 2, oil: 0 };
+      this.inventory = { food: 1, wood: 2, oil: 0, scrap: 0 };
       this.direction = { x: 0, y: 0 };
     }
     move(dx, dy, dt, collisionFn) {
       this.direction.x = dx;
       this.direction.y = dy;
       const len = Math.hypot(dx, dy) || 1;
-      const moveSpeed = this.speed * (0.6 + this.energy / 200);
+      const fatigueModifier = Math.max(0.55, 0.65 + this.energy / 220);
+      const moveSpeed = this.speed * fatigueModifier;
       const nx = dx / len * moveSpeed * dt;
       const ny = dy / len * moveSpeed * dt;
       const targetX = this.x + nx;
@@ -48,7 +51,7 @@
     constructor(x, y) {
       this.x = x;
       this.y = y;
-      this.timer = 60; // seconds of burn
+      this.timer = 30; // seconds of burn
     }
     update(dt) {
       this.timer = Math.max(0, this.timer - dt);

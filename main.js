@@ -2,13 +2,14 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
 const TILE_SIZE = 32;
-const WORLD_SIZE = 150; // tiles per side
+const WORLD_SIZE = 800; // tiles per side (expanded world)
 const params = new URLSearchParams(window.location.search);
 const seedParam = parseInt(params.get('seed'), 10);
 const SEED = Number.isFinite(seedParam) ? seedParam : Math.floor(Math.random() * 1_000_000_000);
 const SHIP_RADIUS = 80;
 const FIRE_RADIUS = 90;
-const RESCUE_COST = { food: 3, wood: 6, oil: 3 };
+const FIRE_LIGHT_RADIUS = FIRE_RADIUS * 3; // illumination punches much farther than warmth
+const RESCUE_COST = { oil: 20, scrap: 20 };
 const CAMPFIRE_COST = 3;
 const GAMMA = 1.2; // Tweak to globally brighten/dim terrain rendering
 
@@ -30,7 +31,8 @@ let rescueTimer = 0;
 let hints = [
   'WASD / Arrow Keys to move',
   'E to gather, Q to eat, F to build fire',
-  'Stay warm near fires or the ship!'
+  'Stay warm near fires or the ship!',
+  'Beacon needs 20 Oil and 20 Scrap Parts'
 ];
 
 function handleInput(dt) {
@@ -62,7 +64,7 @@ function update(dt) {
   updateCampfires(dt);
   checkResourcePickup();
   checkBeacon(dt);
-  UI.updateHUD(player, hints, { seed: SEED, day: Math.floor(timeOfDay / 120 * 4) + 1 });
+  UI.updateHUD(player, hints, { seed: SEED, day: Math.floor(timeOfDay / 120 * 4) + 1, beaconCost: RESCUE_COST });
 }
 
 function updateSurvival(dt) {
@@ -192,6 +194,7 @@ function render() {
   const endX = Math.ceil((camera.x + width) / TILE_SIZE);
   const endY = Math.ceil((camera.y + height) / TILE_SIZE);
 
+  // base world tiles
   for (let y = startY; y <= endY; y++) {
     for (let x = startX; x <= endX; x++) {
       if (x < 0 || y < 0 || x >= WORLD_SIZE || y >= WORLD_SIZE) continue;
@@ -215,18 +218,7 @@ function render() {
   ctx.fillStyle = '#7e8de0';
   ctx.fillRect(shipX - 16, shipY - 8, 32, 16);
 
-  // resources
-  world.resources.forEach(res => {
-    if (res.collected) return;
-    const rx = res.x * TILE_SIZE + TILE_SIZE / 2 - camera.x;
-    const ry = res.y * TILE_SIZE + TILE_SIZE / 2 - camera.y;
-    ctx.fillStyle = resourceColor(res.type);
-    ctx.beginPath();
-    ctx.arc(rx, ry, 8, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  // campfires
+  // campfires (base icon)
   campfires.forEach(f => {
     const fx = f.x - camera.x;
     const fy = f.y - camera.y;
@@ -234,18 +226,42 @@ function render() {
     ctx.beginPath();
     ctx.arc(fx, fy, 10, 0, Math.PI * 2);
     ctx.fill();
-    if (f.active) {
-      const glow = ctx.createRadialGradient(fx, fy, 0, fx, fy, 70);
-      glow.addColorStop(0, 'rgba(255, 160, 64, 0.35)');
-      glow.addColorStop(1, 'rgba(255, 160, 64, 0)');
-      ctx.fillStyle = glow;
-      ctx.beginPath();
-      ctx.arc(fx, fy, 70, 0, Math.PI * 2);
-      ctx.fill();
-    }
   });
 
-  // player
+  // base resource pass (subject to darkness)
+  world.resources.forEach(res => {
+    if (res.collected) return;
+    const rx = res.x * TILE_SIZE + TILE_SIZE / 2 - camera.x;
+    const ry = res.y * TILE_SIZE + TILE_SIZE / 2 - camera.y;
+
+    if (res.type === RESOURCE.SCRAP) {
+      ctx.save();
+      ctx.shadowColor = 'rgba(0, 180, 255, 0.4)';
+      ctx.shadowBlur = res.highlight ? 12 : 6;
+      ctx.fillStyle = '#d6f0ff';
+      ctx.beginPath();
+      ctx.arc(rx, ry, 9.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#3a8bff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(rx - 4, ry);
+      ctx.lineTo(rx + 4, ry);
+      ctx.moveTo(rx, ry - 4);
+      ctx.lineTo(rx, ry + 4);
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
+
+    ctx.fillStyle = resourceColor(res.type);
+    ctx.beginPath();
+    ctx.arc(rx, ry, 8, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // player base
   const px = player.x - camera.x;
   const py = player.y - camera.y;
   ctx.fillStyle = '#82e0aa';
@@ -255,6 +271,108 @@ function render() {
   ctx.strokeStyle = '#2ecc71';
   ctx.stroke();
 
+  // lighting parameters
+  const cycle = (timeOfDay / 120) * Math.PI * 2;
+  const nightFactor = (Math.cos(cycle) + 1) / 2; // 0 (day) -> 1 (deep night)
+  const darkness = 0.2 + nightFactor * 0.55;
+
+  // apply darkness over everything drawn so far
+  ctx.fillStyle = `rgba(6, 10, 24, ${darkness})`;
+  ctx.fillRect(0, 0, width, height);
+
+  // light sources for fire + ship
+  const lightSources = [{ x: shipX, y: shipY, radius: FIRE_LIGHT_RADIUS }];
+  const lightSourcesWorld = [{ x: WORLD_SIZE * TILE_SIZE / 2, y: WORLD_SIZE * TILE_SIZE / 2, radius: FIRE_LIGHT_RADIUS }];
+  campfires.forEach(f => {
+    if (f.active) {
+      lightSources.push({ x: f.x - camera.x, y: f.y - camera.y, radius: FIRE_LIGHT_RADIUS });
+      lightSourcesWorld.push({ x: f.x, y: f.y, radius: FIRE_LIGHT_RADIUS });
+    }
+  });
+
+  if (lightSources.length) {
+    // Carve darkness inside the light radius so the scene beneath shows through.
+    ctx.save();
+    ctx.globalCompositeOperation = 'destination-out';
+    lightSources.forEach(src => {
+      const gradient = ctx.createRadialGradient(src.x, src.y, 0, src.x, src.y, src.radius);
+      gradient.addColorStop(0, 'rgba(0, 0, 0, 1)');
+      gradient.addColorStop(0.25, 'rgba(0, 0, 0, 0.85)');
+      gradient.addColorStop(0.6, 'rgba(0, 0, 0, 0.35)');
+      gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(src.x, src.y, src.radius, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
+
+    // Warm glow behind gameplay elements, capped at ~40% at the center.
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    lightSources.forEach(src => {
+      const glow = ctx.createRadialGradient(src.x, src.y, 0, src.x, src.y, src.radius);
+      glow.addColorStop(0, 'rgba(255, 205, 130, 0.4)');
+      glow.addColorStop(0.4, 'rgba(255, 185, 110, 0.22)');
+      glow.addColorStop(1, 'rgba(255, 155, 90, 0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(src.x, src.y, src.radius, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
+  }
+
+  // On-top lit pass so elements glow without being washed out by the halo layer
+  if (lightSources.length) {
+    world.resources.forEach(res => {
+      if (res.collected) return;
+      const wx = res.x * TILE_SIZE + TILE_SIZE / 2;
+      const wy = res.y * TILE_SIZE + TILE_SIZE / 2;
+      const rx = wx - camera.x;
+      const ry = wy - camera.y;
+      const lit = isLit(wx, wy, lightSourcesWorld);
+      if (!lit) return;
+
+      if (res.type === RESOURCE.SCRAP) {
+        ctx.save();
+        ctx.shadowColor = 'rgba(0, 180, 255, 0.5)';
+        ctx.shadowBlur = res.highlight ? 12 : 6;
+        ctx.fillStyle = liftColor('#d6f0ff', true);
+        ctx.beginPath();
+        ctx.arc(rx, ry, 9.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = liftColor('#3a8bff', true);
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(rx - 4, ry);
+        ctx.lineTo(rx + 4, ry);
+        ctx.moveTo(rx, ry - 4);
+        ctx.lineTo(rx, ry + 4);
+        ctx.stroke();
+        ctx.restore();
+        return;
+      }
+
+      ctx.fillStyle = liftColor(resourceColor(res.type), true);
+      ctx.beginPath();
+      ctx.arc(rx, ry, 8, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  // player highlight if lit (drawn on top of glow)
+  const playerLit = isLit(player.x, player.y, lightSourcesWorld);
+  if (playerLit) {
+    ctx.fillStyle = liftColor('#82e0aa', true);
+    ctx.beginPath();
+    ctx.arc(px, py, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = liftColor('#2ecc71', true);
+    ctx.stroke();
+  }
+
   // beacon indicator
   if (beaconArmed) {
     ctx.strokeStyle = 'rgba(255,255,0,0.6)';
@@ -262,12 +380,6 @@ function render() {
     ctx.arc(shipX, shipY, 26 + Math.sin(performance.now() / 200) * 6, 0, Math.PI * 2);
     ctx.stroke();
   }
-
-  // day/night tint
-  const cycle = (timeOfDay / 120) * Math.PI * 2;
-  const nightFactor = (Math.cos(cycle) + 1) / 2; // 0 (day) -> 1 (deep night)
-  ctx.fillStyle = `rgba(6, 10, 24, ${0.2 + nightFactor * 0.55})`;
-  ctx.fillRect(0, 0, width, height);
 
   // debug HUD seed
   ctx.fillStyle = 'rgba(255,255,255,0.65)';
@@ -289,7 +401,28 @@ function tileColor(tile) {
 function resourceColor(type) {
   if (type === RESOURCE.FOOD) return '#4cd964';
   if (type === RESOURCE.WOOD) return '#9b7653';
+  if (type === RESOURCE.SCRAP) return '#d6f0ff';
   return '#8fd3ff';
+}
+
+function isLit(x, y, sources) {
+  return sources.some(src => distance(x, y, src.x, src.y) < src.radius);
+}
+
+function liftColor(hex, lit) {
+  if (!lit) return hex;
+  const [r, g, b] = hexToRgb(hex);
+  // Blend toward white to reach a bright ~75% tone without washing out the base hue.
+  const mix = 0.25; // 25% white keeps color detail while lifting brightness noticeably.
+  const nr = Math.min(255, Math.round(r * (1 - mix) + 255 * mix));
+  const ng = Math.min(255, Math.round(g * (1 - mix) + 255 * mix));
+  const nb = Math.min(255, Math.round(b * (1 - mix) + 255 * mix));
+  return `rgb(${nr}, ${ng}, ${nb})`;
+}
+
+function hexToRgb(hex) {
+  const bigint = parseInt(hex.replace('#', ''), 16);
+  return [(bigint >> 16) & 255, (bigint >> 8) & 255, bigint & 255];
 }
 
 function applyBrightness(hex, gamma) {
@@ -302,7 +435,11 @@ function applyBrightness(hex, gamma) {
 
 // Input handling
 window.addEventListener('keydown', (e) => {
-  keys[e.key.toLowerCase()] = true;
+  const key = e.key.toLowerCase();
+  keys[key] = true;
+  if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(key)) {
+    e.preventDefault();
+  }
   if (e.key === 'e' || e.key === 'E') {
     // gathering handled in update loop proximity
   }
@@ -314,6 +451,10 @@ window.addEventListener('keydown', (e) => {
 
 window.addEventListener('keyup', (e) => {
   keys[e.key.toLowerCase()] = false;
+});
+
+window.addEventListener('blur', () => {
+  keys = {};
 });
 
 window.addEventListener('resize', () => {
