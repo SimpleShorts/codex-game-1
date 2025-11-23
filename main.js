@@ -300,7 +300,9 @@ function render() {
 
   // punch light holes around active fires (and the ship) so night rendering keeps nearby resources visible
   const lightSources = [{ x: shipX, y: shipY, radius: FIRE_LIGHT_RADIUS }];
-  campfires.forEach(f => { if (f.active) lightSources.push({ x: f.x - camera.x, y: f.y - camera.y, radius: FIRE_LIGHT_RADIUS }); });
+  campfires.forEach(f => {
+    if (f.active) lightSources.push({ x: f.x - camera.x, y: f.y - camera.y, radius: FIRE_LIGHT_RADIUS });
+  });
   if (lightSources.length) {
     // First clear darkness inside the radius so the base scene shows through.
     ctx.save();
@@ -318,31 +320,30 @@ function render() {
     });
     ctx.restore();
 
-    // Boost underlying colors so resources/actors remain bright within the light bubble.
+    // Lift scene brightness inside the light cone so objects stay clear at ~75% intensity.
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
     lightSources.forEach(src => {
-      const boost = ctx.createRadialGradient(src.x, src.y, 0, src.x, src.y, src.radius * 0.9);
-      boost.addColorStop(0, 'rgba(255, 255, 235, 0.95)');
-      boost.addColorStop(0.3, 'rgba(255, 240, 205, 0.9)');
-      boost.addColorStop(0.65, 'rgba(255, 215, 150, 0.55)');
-      boost.addColorStop(1, 'rgba(255, 200, 130, 0.25)');
-      ctx.fillStyle = boost;
+      const lift = ctx.createRadialGradient(src.x, src.y, 0, src.x, src.y, src.radius);
+      lift.addColorStop(0, 'rgba(255, 245, 210, 0.75)');
+      lift.addColorStop(0.35, 'rgba(255, 235, 190, 0.6)');
+      lift.addColorStop(0.7, 'rgba(255, 225, 170, 0.32)');
+      lift.addColorStop(1, 'rgba(255, 215, 160, 0)');
+      ctx.fillStyle = lift;
       ctx.beginPath();
-      ctx.arc(src.x, src.y, src.radius * 0.95, 0, Math.PI * 2);
+      ctx.arc(src.x, src.y, src.radius, 0, Math.PI * 2);
       ctx.fill();
     });
     ctx.restore();
 
-    // Then add a warm glow to actively brighten everything inside the light.
+    // Add a warm glow that peaks at 50% brightness and gently tapers outward.
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     lightSources.forEach(src => {
-      const glow = ctx.createRadialGradient(src.x, src.y, 0, src.x, src.y, src.radius * 0.95);
-      glow.addColorStop(0, 'rgba(255, 248, 224, 0.95)');
-      glow.addColorStop(0.2, 'rgba(255, 230, 180, 0.9)');
-      glow.addColorStop(0.55, 'rgba(255, 205, 130, 0.6)');
-      glow.addColorStop(1, 'rgba(255, 175, 90, 0.24)');
+      const glow = ctx.createRadialGradient(src.x, src.y, 0, src.x, src.y, src.radius);
+      glow.addColorStop(0, 'rgba(255, 205, 130, 0.5)');
+      glow.addColorStop(0.4, 'rgba(255, 185, 110, 0.32)');
+      glow.addColorStop(1, 'rgba(255, 155, 90, 0)');
       ctx.fillStyle = glow;
       ctx.beginPath();
       ctx.arc(src.x, src.y, src.radius, 0, Math.PI * 2);
