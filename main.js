@@ -8,7 +8,7 @@ const seedParam = parseInt(params.get('seed'), 10);
 const SEED = Number.isFinite(seedParam) ? seedParam : Math.floor(Math.random() * 1_000_000_000);
 const SHIP_RADIUS = 80;
 const FIRE_RADIUS = 90;
-const FIRE_LIGHT_RADIUS = 170;
+const FIRE_LIGHT_RADIUS = FIRE_RADIUS * 3; // illumination punches much farther than warmth
 const RESCUE_COST = { oil: 20, scrap: 20 };
 const CAMPFIRE_COST = 3;
 const GAMMA = 1.2; // Tweak to globally brighten/dim terrain rendering
@@ -259,13 +259,17 @@ function render() {
     ctx.arc(fx, fy, 10, 0, Math.PI * 2);
     ctx.fill();
     if (f.active) {
+      ctx.save();
       const glow = ctx.createRadialGradient(fx, fy, 0, fx, fy, FIRE_LIGHT_RADIUS);
-      glow.addColorStop(0, 'rgba(255, 180, 96, 0.45)');
-      glow.addColorStop(1, 'rgba(255, 180, 96, 0)');
+      glow.addColorStop(0, 'rgba(255, 232, 180, 0.9)');
+      glow.addColorStop(0.35, 'rgba(255, 200, 120, 0.65)');
+      glow.addColorStop(1, 'rgba(255, 160, 64, 0.12)');
+      ctx.globalCompositeOperation = 'lighter';
       ctx.fillStyle = glow;
       ctx.beginPath();
       ctx.arc(fx, fy, FIRE_LIGHT_RADIUS, 0, Math.PI * 2);
       ctx.fill();
+      ctx.restore();
     }
   });
 
@@ -302,7 +306,8 @@ function render() {
     ctx.globalCompositeOperation = 'destination-out';
     lightSources.forEach(src => {
       const gradient = ctx.createRadialGradient(src.x, src.y, 0, src.x, src.y, src.radius);
-      gradient.addColorStop(0, `rgba(0, 0, 0, ${Math.min(0.8, darkness + 0.25)})`);
+      gradient.addColorStop(0, 'rgba(0, 0, 0, 1)');
+      gradient.addColorStop(0.45, `rgba(0, 0, 0, ${Math.min(0.95, darkness + 0.3)})`);
       gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
       ctx.fillStyle = gradient;
       ctx.beginPath();

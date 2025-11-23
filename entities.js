@@ -5,9 +5,9 @@
     constructor(x, y) {
       this.x = x;
       this.y = y;
-      // Increase base speed so single key taps translate to roughly 10px steps at 60fps
-      // while still letting fatigue slow the character slightly over time.
-      this.speed = 620;
+      // Keep movement snappy but slightly calmer so taps feel controllable
+      // while still letting fatigue slow the character over time.
+      this.speed = 540;
       this.energy = 100;
       this.health = 100;
       this.warmth = 100;
