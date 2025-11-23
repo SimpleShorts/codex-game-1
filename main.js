@@ -301,15 +301,33 @@ function render() {
   // punch light holes around active fires (and the ship) so night rendering keeps nearby resources visible
   const lightSources = [{ x: shipX, y: shipY, radius: FIRE_LIGHT_RADIUS }];
   campfires.forEach(f => { if (f.active) lightSources.push({ x: f.x - camera.x, y: f.y - camera.y, radius: FIRE_LIGHT_RADIUS }); });
-  if (lightSources.length && darkness > 0.25) {
+  if (lightSources.length) {
+    // First clear darkness inside the radius so the base scene shows through.
     ctx.save();
     ctx.globalCompositeOperation = 'destination-out';
     lightSources.forEach(src => {
       const gradient = ctx.createRadialGradient(src.x, src.y, 0, src.x, src.y, src.radius);
       gradient.addColorStop(0, 'rgba(0, 0, 0, 1)');
-      gradient.addColorStop(0.45, `rgba(0, 0, 0, ${Math.min(0.95, darkness + 0.3)})`);
+      gradient.addColorStop(0.25, 'rgba(0, 0, 0, 0.85)');
+      gradient.addColorStop(0.6, 'rgba(0, 0, 0, 0.35)');
       gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
       ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(src.x, src.y, src.radius, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
+
+    // Then add a warm glow to actively brighten everything inside the light.
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    lightSources.forEach(src => {
+      const glow = ctx.createRadialGradient(src.x, src.y, 0, src.x, src.y, src.radius * 0.95);
+      glow.addColorStop(0, 'rgba(255, 244, 214, 0.95)');
+      glow.addColorStop(0.2, 'rgba(255, 228, 168, 0.9)');
+      glow.addColorStop(0.55, 'rgba(255, 200, 120, 0.55)');
+      glow.addColorStop(1, 'rgba(255, 170, 80, 0.18)');
+      ctx.fillStyle = glow;
       ctx.beginPath();
       ctx.arc(src.x, src.y, src.radius, 0, Math.PI * 2);
       ctx.fill();
